@@ -1,0 +1,357 @@
+ENGINEERING NOTEBOOK — ESP-32 Motion Detection System
+======================================================
+CNT 1510 Wireless Networking Final Project
+
+Purpose: Record findings, decisions, and issues encountered during the
+build. Written so each entry can be dropped directly into slideshow slides.
+
+Each entry has:
+  - TOPIC: short headline
+  - FINDING / ISSUE: what we learned or what went wrong
+  - HOW WE SOLVED IT: the fix (if applicable)
+  - TAKEAWAY: one-line lesson suitable for a slide bullet
+
+
+======================================================
+ENTRY 1 — Arduino IDE & ESP-32 Setup
+======================================================
+
+TOPIC:
+Getting the ESP-32 to be recognized by a Windows desktop.
+
+FINDING / ISSUE:
+After installing Arduino IDE 2.3.8 and the "esp32 by Espressif Systems"
+board package (v3.3.8), the IDE reported "NO PORTS DISCOVERED" when the
+ESP-32 was plugged in. Device Manager showed the board as
+"CP2102 USB to UART Bridge Controller" under "Other devices" with
+Code 28: "The drivers for this device are not installed."
+
+HOW WE SOLVED IT:
+Downloaded and installed the CP210x Universal Windows Driver from
+Silicon Labs (https://www.silabs.com/developer-tools/usb-to-uart-bridge-vcp-drivers).
+After unplugging and replugging the ESP-32, Windows recognized it as
+"Silicon Labs CP210x USB to UART Bridge (COM3)" and Arduino IDE picked
+it up as "ESP32 Dev Module on COM3".
+
+TAKEAWAY:
+The ESP-32 communicates with the PC through a USB-to-serial bridge chip
+(CP2102). Without the matching driver, Windows cannot expose it as a
+serial port — meaning no code can be uploaded. This is a networking /
+I/O layer issue, not a hardware problem.
+
+
+======================================================
+ENTRY 2 — Serial Monitor Baud Rate Mismatch
+======================================================
+
+TOPIC:
+Garbled characters in the Serial Monitor after a successful upload.
+
+FINDING / ISSUE:
+After uploading a Hello World sketch that called Serial.begin(115200),
+the Serial Monitor displayed rows of question-mark / diamond symbols
+(���������) instead of readable text.
+
+HOW WE SOLVED IT:
+Changed the Serial Monitor baud rate dropdown (bottom-right of the
+monitor panel) from the default 9600 baud to 115200 baud to match
+the Serial.begin() call in the sketch. Readable text appeared
+immediately.
+
+TAKEAWAY:
+Serial communication requires both sides to agree on the baud rate.
+When the transmit and receive rates differ, bytes are sampled at the
+wrong intervals and the output is garbage. This is the same concept
+that applies to any serial/network protocol: both endpoints must
+share the same configuration.
+
+
+======================================================
+ENTRY 3 — WiFi Connection Successful (Must Have #1)
+======================================================
+
+TOPIC:
+ESP-32 connected to the local WiFi network on the first attempt.
+
+FINDING / ISSUE:
+Uploaded the wifi_connection sketch with the router's SSID and
+password. The ESP-32 associated with the network, received an IP
+address via DHCP, and held the connection stable across multiple
+10-second monitoring loops.
+
+KEY NUMBERS:
+  - IP address assigned: 10.0.0.148
+  - Connection time:     ~6.5 seconds
+  - Signal strength:     -58 to -59 dBm (good)
+
+HOW WE SOLVED IT:
+No issues encountered. The sketch used the ESP-32 Arduino Core's
+built-in WiFi library (#include <WiFi.h>) with WiFi.begin(ssid,
+password) and polled WiFi.status() until WL_CONNECTED.
+
+TAKEAWAY:
+ESP-32 operates as a standard DHCP client on a home WiFi network —
+no special router configuration needed. RSSI around -59 dBm leaves
+plenty of headroom for reliable communication. This satisfies
+Must Have #1: "ESP-32 successfully connects to a WiFi network and
+maintains a stable connection."
+
+
+======================================================
+ENTRY 4 — PIR Hardware Connector Incompatibility
+======================================================
+
+TOPIC:
+Couldn't plug the PIR sensor directly into the breadboard.
+
+FINDING / ISSUE:
+The HC-SR501 variant received has its 3-pin header soldered on the
+top side of the PCB with the pins pointing straight up, and the
+BOJACK jumper wire kit only includes male-to-male (M-M) wires. Two
+male pins can't connect directly — no female socket in the chain.
+Rotating the PIR to plug the pins into the breadboard wasn't
+possible due to components on the same side.
+
+HOW WE SOLVED IT:
+1. Short-term: kept developing with the ESP-32 BOOT button (GPIO 0)
+   as a digital stand-in for the PIR. Same GPIO read path, same
+   WiFi + HTTP code — only the physical sensor differs.
+2. Long-term: ordered male-to-female (M-F) Dupont jumper cables via
+   Amazon Same-Day Delivery (5-10 PM window) to finish the wiring.
+
+TAKEAWAY:
+Digital inputs are digital inputs — to the ESP-32's firmware, a
+button press and a PIR trigger look identical (a pin going HIGH or
+LOW). This let us build and test the full end-to-end pipeline
+(GPIO -> WiFi -> HTTP -> server log) before the real sensor was
+even wired up. In engineering, separating the signal source from
+the signal path is how you keep making progress when one part of
+the system is blocked.
+
+
+======================================================
+ENTRY 5 — End-to-End Motion Alert Pipeline Working
+======================================================
+
+TOPIC:
+First successful motion alert reached the central server.
+
+FINDING / ISSUE:
+Uploaded motion_sensor sketch with USE_BOOT_BUTTON_FOR_TESTING=true.
+ESP-32 connected to WiFi, BOOT button press triggered an HTTP POST
+to the Flask server on the PC, server responded 200 OK, and the
+alert appeared on the live dashboard.
+
+KEY NUMBERS:
+  - ESP-32 IP:      10.0.0.148  (DHCP from router)
+  - Server IP:      10.0.0.113  (PC on ethernet)
+  - RSSI:           -58 dBm (good)
+  - HTTP status:    200 OK
+  - Round-trip:     81 ms (ESP-32 -> WiFi -> router -> PC -> back)
+
+REQUIREMENTS SATISFIED IN THIS RUN:
+  - Must Have #1: WiFi connection (maintained)
+  - Must Have #2: GPIO input triggers alert (button, PIR coming)
+  - Must Have #3: HTTP POST transmitted over network
+  - Must Have #4: Server logged the event with timestamp
+  - Must Have #5: Basic signal transmission documented
+
+TAKEAWAY:
+A full IoT pipeline running in one take — sensor node, wireless
+link, local server, persistent log. 81 ms round-trip over local
+WiFi is well within the "real-time" range and matches expectations
+for a 2.4 GHz LAN on a home router. This is the concrete
+demonstration of the networking layer the course is testing.
+
+
+======================================================
+ENTRY 6 — WiFi-Only Motion Sensing (Single Node)
+======================================================
+
+TOPIC:
+Proof-of-concept: detecting motion with a single ESP-32 using
+nothing but WiFi signal strength (no PIR sensor).
+
+FINDING / ISSUE:
+Uploaded the wifi_sensing sketch. ESP-32 connected to the router,
+sampled RSSI at 10 Hz, averaged 100 samples for a baseline, then
+monitored for deviations. A person walking near the board caused
+RSSI to swing 4-7 dBm from baseline, which reliably triggered the
+"wifi_motion_detected" alert to the server.
+
+KEY IDEA:
+The ESP-32 is not generating its own sensing signal — it's
+measuring the router's signal as received at the ESP-32 antenna.
+A human body absorbs and reflects 2.4 GHz signals, changing the
+multipath propagation between router and ESP-32, which shows up
+as RSSI deviation.
+
+TAKEAWAY:
+WiFi sensing with a single node is fundamentally a shadow/fade
+detector along the router-to-node path. It works, but it depends
+on the router being on and in range, and the "detection zone" is
+limited to that path.
+
+
+======================================================
+ENTRY 7 — Dual-Node WiFi Sensing with Cross-Correlation
+======================================================
+
+TOPIC:
+Two ESP-32 nodes (wifi_sensor_1, wifi_sensor_2) running the
+same RSSI-based detection sketch, placed in different parts of
+the room. Server-side correlator fires a HIGH_CONFIDENCE_MOTION
+event when both nodes report within a 3-second window.
+
+FINDING / ISSUE:
+Placed node 1 on nightstand, node 2 on dresser, both powered via
+USB wall chargers. Moving around the room produced:
+  - Individual wifi_motion_detected events on each node
+  - Two cross-correlated HIGH_CONFIDENCE_MOTION events where both
+    nodes agreed within 3 seconds
+  - RSSI deltas of 4-7 dBm on the triggering samples
+
+ALERT IPs AND COUNTS (from dashboard screenshot):
+  - wifi_sensor_1 source IP: 10.0.0.148
+  - wifi_sensor_2 source IP: 10.0.0.24
+  - 23 total alerts in a short observation window
+  - 2 of those were HIGH_CONFIDENCE (cross-correlated)
+
+TAKEAWAY:
+Two nodes meaningfully improve detection confidence. Single-node
+RSSI is noisy — any bump can trigger a false positive — but
+requiring *independent* agreement between two physically separated
+nodes within a short time window suppresses those false positives
+while keeping true positives (a person's body affects both paths).
+
+This implements in software what professional systems do with
+redundancy and sensor fusion: combining multiple noisy sensors
+into a higher-confidence signal. It also demonstrates real
+distributed-system concepts: independent nodes, time-windowed
+event correlation, and a central aggregator.
+
+
+======================================================
+ENTRY 8 — Peer-to-Peer Tripwire with ESP-NOW
+======================================================
+
+TOPIC:
+Upgraded the WiFi-only sensor from "both nodes watching the router"
+to a true peer-to-peer tripwire using ESP-NOW.
+
+FINDING / ISSUE:
+The router-based dual-node system measured each node's path to the
+same router, not the path between the two nodes. Correlation said
+"both nodes saw a disturbance" but did not directly measure motion
+in the space between them.
+
+Switched to ESP-NOW, Espressif's connectionless frame-based
+protocol for ESP-32-to-ESP-32 communication. One board
+(esp_now_beacon) broadcasts a 10 Hz packet stream; the other
+(esp_now_tripwire) receives those packets and reads the per-packet
+RSSI from the rx_ctrl field. Motion between the two boards now
+disturbs the *direct* signal path, which is exactly what we're
+measuring.
+
+The receiver stays joined to the home WiFi so (a) ESP-NOW uses the
+same radio channel as the router and (b) HTTP alerts can still
+reach the Flask server.
+
+KEY API DETAIL:
+  void onDataRecv(const esp_now_recv_info_t *info,
+                  const uint8_t *data, int len) {
+      int rssi = info->rx_ctrl->rssi;   // <-- the measurement
+      ...
+  }
+
+TAKEAWAY:
+Moving from "both nodes observe the router link" to "one node
+beacons, the other measures the direct link" converts the system
+from a coverage detector to a precise tripwire. This also
+demonstrates peer-to-peer wireless (ESP-NOW) alongside the
+client-server networking (HTTP over WiFi), so one project
+showcases two distinct network architectures.
+
+
+======================================================
+ENTRY 9 — Adaptive Baseline (Exponential Moving Average)
+======================================================
+
+TOPIC:
+Replaced the fixed 10-second baseline with a continuously updating
+Exponential Moving Average.
+
+FINDING / ISSUE:
+The first version of the tripwire locked in a baseline after the
+initial 100-sample warmup and never updated it. Two real problems
+came from this:
+  1. Moving a board to a new position permanently broke detection
+     because the stale baseline was wrong for the new geometry.
+  2. A person sitting in the beam caused continuous "broken" state
+     — the RSSI never returned to baseline because the baseline
+     didn't move.
+
+HOW WE SOLVED IT:
+Every received packet now updates the baseline as:
+     baseline = (1 - alpha) * baseline + alpha * rssi
+with alpha = 0.01. Fast events (a walk-through in 1-2 seconds,
+about 10-20 packets at 10 Hz) only nudge the baseline by
+roughly (1 - 0.99^20) ~= 18 percent — still easily above the
+trigger threshold. Slow events (a sitting person, repositioned
+board) are absorbed over about 20-30 seconds, so the system
+self-recalibrates and re-arms at the new normal.
+
+TAKEAWAY:
+This is the same Exponential Moving Average pattern used in TCP's
+round-trip-time estimator and in computer-vision background
+subtraction. It makes the detector tolerant of slow environmental
+drift while staying sensitive to rapid disturbances — which is
+exactly what "motion" is.
+
+
+======================================================
+ENTRY 10 — RSSI Saturation at Close Range (False Triggers)
+======================================================
+
+TOPIC:
+Debugging repeated "tripwire broken" alerts when nothing was
+crossing the beam.
+
+FINDING / ISSUE:
+Serial output showed the baseline settling around -27 dBm with
+normal readings at -24 dBm (extremely strong signal — boards were
+within a foot or two of each other). Every few seconds the RSSI
+would briefly dip to -31, -32, or -36 dBm with no physical motion
+in the path, firing the tripwire anyway.
+
+At RSSI around -24 to -30 dBm the radio is running near its
+maximum sensitivity. Any of the following can cause transient
+dropouts large enough to pass the delta threshold:
+  - WiFi interference from nearby devices on the same channel
+  - Multipath reflections in a small space
+  - Packet-level retries inside the radio stack
+  - Even airflow or small antenna-orientation shifts
+
+HOW WE SOLVED IT:
+Physically separated the two boards by several feet (across the
+room / across a doorway). The baseline moved down into the
+-50 to -70 dBm "sweet spot" where ambient jitter is small
+compared to the motion signal, and the false triggers stopped.
+
+RSSI OPERATING RANGE (reference):
+  -20 to -30 dBm  saturated, jittery, unreliable
+  -50 to -70 dBm  sweet spot for motion sensing
+  -70 to -85 dBm  weaker but usable
+  below -85 dBm   packet loss climbs, detection degrades
+
+TAKEAWAY:
+More signal is not better. A sensing system has a signal-strength
+"Goldilocks zone" — strong enough that noise is irrelevant, but
+not so strong that the radio saturates and tiny environmental
+changes become huge relative swings. This is a general principle
+in RF design and it showed up concretely in our own data.
+
+
+======================================================
+ENTRY 11 — [next topic here]
+======================================================

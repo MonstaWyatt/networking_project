@@ -1,0 +1,38 @@
+HARDWARE REQUIREMENTS — ESP-32 Motion Detection System
+======================================================
+
+Assuming 2 sensor units (2 room entry points):
+
+
+1. ESP-32 Development Boards (x2)
+   Price: ~$6-7 each / ~$18 for a 3-pack
+   Link: https://www.amazon.com/ESP-WROOM-32-Development-Microcontroller-Integrated-Compatible/dp/B08D5ZD528
+
+2. HC-SR501 PIR Motion Sensors (x2)
+   Price: ~$3-4 each / ~$7 for a 3-pack
+   Link: https://www.amazon.com/HC-SR501-PIR-Motion-Sensor-Detector/dp/B0897BMKR3
+
+3. Breadboards (x2)
+   Price: ~$3-4 each / ~$8 for a kit
+   Link: https://www.amazon.com/Breadboard-Jumper-Wire-75pcs-pack/dp/B0040DEI9M
+
+4. Jumper Wires (assorted M-M, M-F, F-F)
+   Price: ~$5-7 for a kit
+   Link: https://www.amazon.com/DIANN-560pcs-Jumper-Breadboard-Multicolored/dp/B0BFWR2R3Y
+
+5. USB Micro Cables (x2)
+   Price: ~$5-6 for a 2-pack
+   Link: https://www.amazon.com/DIYmall-Micro-USB-Charging-Transfer-Android-Phone/dp/B0C89Q81FW
+
+
+ESTIMATED TOTAL: $30-45 (for 2 sensor units)
+
+Note: You may already have USB cables and a laptop to run the server.
+      Prices may vary. Check Amazon for current deals and multi-packs.
+
+
+BUDGET SUMMARY
+==============
+Budget:          $100
+Estimated Cost:  $30-45
+Remaining:       $55-70 (available for extras or additional sensor units)

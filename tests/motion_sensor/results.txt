@@ -1,0 +1,34 @@
+TEST RUN - motion_sensor (BOOT button stand-in)
+Date: 2026-04-19
+Board: ESP32 Dev Module on COM3
+Config: USE_BOOT_BUTTON_FOR_TESTING = true
+Trigger: BOOT button (GPIO 0)
+Server: http://10.0.0.113:5000/motion
+
+SERIAL OUTPUT:
+------------------------------------------------------
+=== Motion Sensor booting ===
+Input pin: GPIO 0
+Active state: LOW
+Server: http://10.0.0.113:5000/motion
+Connecting to WiFi: YOUR_WIFI_SSID
+......
+WiFi connected. IP: 10.0.0.148   RSSI: -58 dBm
+Ready. Waiting for motion...
+>>> MOTION DETECTED <<<
+Alert sent. HTTP 200  latency=81 ms
+------------------------------------------------------
+
+RESULT: PASS
+  - HTTP response: 200 OK
+  - Round-trip latency: 81 ms
+  - Dashboard: alert appeared in table with correct sensor_id,
+    timestamp, and source IP 10.0.0.148
+  - Log file (alerts.log) received a new line
+
+INTERPRETATION:
+Full pipeline confirmed: GPIO -> WiFi -> LAN -> HTTP -> Flask ->
+log file + dashboard. 81 ms round-trip is typical for 2.4 GHz WiFi
+on a home network with a lightly-loaded server. This satisfies
+Must Haves #1, #3, #4, #5. Must Have #2 will be confirmed with the
+real PIR once M-F jumper wires arrive.

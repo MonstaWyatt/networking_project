@@ -1,0 +1,28 @@
+TEST RUN - wifi_connection
+Date: 2026-04-19
+Board: ESP32 Dev Module on COM3
+WiFi SSID: YOUR_WIFI_SSID
+
+SERIAL OUTPUT (at 115200 baud):
+------------------------------------------------------
+Connecting to WiFi: YOUR_WIFI_SSID
+.............
+WiFi connected!
+IP address: 10.0.0.148
+Signal strength (RSSI): -59 dBm
+Still connected. RSSI: -59 dBm
+Still connected. RSSI: -58 dBm
+Still connected. RSSI: -58 dBm
+(continued stable)
+------------------------------------------------------
+
+RESULT: PASS
+  - Connection time: ~6.5 seconds (13 dots x 500ms)
+  - Assigned IP: 10.0.0.148 (via DHCP from router)
+  - RSSI: -58 to -59 dBm (good signal strength)
+  - Stayed connected across multiple 10s loop iterations
+
+INTERPRETATION:
+The router assigned the ESP-32 an IP on the 10.0.0.x subnet via DHCP.
+RSSI around -58 dBm is a "good" signal - plenty of headroom for
+reliable communication at this location. Must Have #1 is satisfied.

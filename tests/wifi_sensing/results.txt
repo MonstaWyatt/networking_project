@@ -1,0 +1,39 @@
+TEST RUN — wifi_sensing (dual-node with cross-correlation)
+Date: 2026-04-19
+Boards:
+  - ESP-32 #1  sensor_id = wifi_sensor_1   IP = 10.0.0.148
+  - ESP-32 #2  sensor_id = wifi_sensor_2   IP = 10.0.0.24
+Placement: node 1 on nightstand, node 2 on dresser (same room)
+Power: USB wall chargers (both nodes)
+Server: http://10.0.0.113:5000/motion  (correlation window = 3.0s)
+
+DASHBOARD OBSERVATIONS:
+  - Total alerts received: 23 in a short window
+  - 2 HIGH_CONFIDENCE_MOTION events (both nodes agreed within 3s)
+  - Many individual wifi_motion_detected events from each node
+
+SAMPLE HIGH-CONFIDENCE EVENTS:
+  [2026-04-19 04:13:02]  wifi_sensor_2 + wifi_sensor_1
+  [2026-04-19 04:13:38]  wifi_sensor_1 + wifi_sensor_2
+
+SAMPLE INDIVIDUAL EVENTS:
+  wifi_sensor_1  delta=4-7 dBm  rssi=-64 to -67 dBm
+  wifi_sensor_2  delta=4-6 dBm  rssi=-68 to -76 dBm
+
+RESULT: PASS
+  - Both nodes operate concurrently without interfering with each
+    other's detection
+  - Server correctly correlates alerts across nodes within the
+    3-second window
+  - Yellow HIGH_CONFIDENCE rows appear in the dashboard when both
+    nodes fire close in time
+  - Satisfies the Nice Have "WiFi-only motion sensing" requirement
+    at the dual-node level
+
+INTERPRETATION:
+Single-node RSSI sensing is noisy; single events cannot distinguish
+real motion from routine WiFi jitter. Two-node cross-correlation
+suppresses independent noise while preserving real motion signals
+(which disturb both nodes' paths). This is a classical sensor-fusion
+pattern implemented at the application layer over a standard WiFi
+LAN.

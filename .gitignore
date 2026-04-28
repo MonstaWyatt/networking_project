@@ -1,0 +1,34 @@
+# --- Claude / AI assistant artifacts ---
+CLAUDE.md
+.claude/
+.serena/
+
+# --- Node / npm ---
+node_modules/
+package-lock.json
+
+# --- Python / Flask runtime ---
+__pycache__/
+*.py[cod]
+*.egg-info/
+.venv/
+venv/
+
+# Server runtime log (regenerated each run)
+tests/motion_server/alerts.log
+
+# --- Editor / OS junk ---
+.vscode/
+.idea/
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# --- Build / temp ---
+*.tmp
+*.bak
+~$*
+
+# --- Local secrets (in case any are added later) ---
+.env
+secrets.txt

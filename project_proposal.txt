@@ -1,0 +1,27 @@
+We will build a wireless motion detection system using ESP-32 microcontrollers and PIR sensors to detect room entry and transmit alerts over a WiFi network to a central server.
+
+MUST HAVE
+
+ESP-32 successfully connects to a WiFi network and maintains a stable connection
+PIR motion sensor accurately detects motion and triggers a signal on the ESP-32 GPIO pin
+ESP-32 transmits a motion alert (HTTP or MQTT message) over the network when motion is detected
+A central server/device receives and logs the motion events with timestamps
+Test and document basic signal transmission and reception between ESP-32 and server
+
+
+SHOULD HAVE
+
+Multiple ESP-32 sensors reporting to the same server (simulating multiple room entry points)
+Differentiate which sensor/room triggered the alert in the logged data
+Measure and document WiFi signal reliability (e.g., missed packets, latency, range limitations)
+Test interference or connectivity in different indoor environments (walls, distance)
+Add cooldown logic to prevent duplicate alerts from a single motion event
+
+
+NICE TO HAVE
+
+A live web dashboard that displays motion alerts in real time
+WiFi-only motion sensing — proof-of-concept using RSSI signal changes between ESP-32 nodes to detect motion without a PIR sensor
+Push notifications (email, SMS, or app notification) when motion is detected
+Battery-powered operation with power consumption analysis
+Historical data visualization (motion frequency graphs over time)

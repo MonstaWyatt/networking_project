@@ -1,0 +1,48 @@
+TEST RUN — esp_now_tripwire (peer-to-peer RSSI tripwire)
+Date: 2026-04-19
+Boards:
+  - Beacon (ESP-32 #1)    flashed with esp_now_beacon sketch
+  - Receiver (ESP-32 #2)  flashed with esp_now_tripwire sketch
+                          sensor_id = tripwire_receiver
+Server: http://10.0.0.113:5000/motion
+
+----------------------------------------------------------
+ATTEMPT 1 — boards placed close together (~1-2 feet)
+----------------------------------------------------------
+BASELINE: ~-27 dBm   (very strong, near radio saturation)
+NORMAL RSSI: ~-24 dBm
+BEHAVIOR: frequent false triggers every few seconds even with
+  nobody near the beam. Random dropouts to -31/-32/-36 dBm were
+  firing the delta>=4 dBm threshold.
+
+SAMPLE OUTPUT:
+  RSSI=-24 dBm  baseline=-27.0  delta=3
+  RSSI=-31 dBm  baseline=-27.1  delta=4   (false trigger)
+  RSSI=-36 dBm  baseline=-27.0  delta=10  (false trigger)
+
+DIAGNOSIS:
+At -24 dBm the radio is saturated. Tiny environmental events
+(WiFi interference, multipath, packet retries) cause outsized
+RSSI swings that pass the threshold.
+
+----------------------------------------------------------
+ATTEMPT 2 — boards separated across the room
+----------------------------------------------------------
+BASELINE: settled in the -50 to -70 dBm range (typical motion-
+  sensing sweet spot)
+BEHAVIOR: no false triggers. Walking through the direct line
+  between the two boards reliably produced one "tripwire_broken"
+  alert per pass. Adaptive EMA baseline absorbed small long-term
+  drifts without causing extra alerts.
+RESULT: PASS
+
+----------------------------------------------------------
+KEY TAKEAWAYS (for the slideshow)
+----------------------------------------------------------
+1. Peer-to-peer ESP-NOW measures the actual path between the
+   sensor nodes (not the router), which is a cleaner, more
+   defensible definition of "motion in a specific line."
+2. Adaptive (EMA) baseline absorbs slow environmental drift —
+   no more constant re-tripping when someone sits in the beam.
+3. RSSI has a working range. Boards must not be too close or
+   the radio saturates and random jitter creates false alarms.
