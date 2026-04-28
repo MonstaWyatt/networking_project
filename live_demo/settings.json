@@ -1,0 +1,13 @@
+{
+  "_comment": "Single source of truth for the live demo. Edit this file, then run 'python apply_settings.py' to patch the two .ino sketches before flashing.",
+
+  "wifi": {
+    "ssid":     "whyit",
+    "password": "whyit12345"
+  },
+
+  "server": {
+    "ip":   "172.20.10.2",
+    "port": 5000
+  }
+}

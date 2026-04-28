@@ -3,9 +3,13 @@ CLAUDE.md
 .claude/
 .serena/
 
+# --- Slide build script (kept local) ---
+build_slides.js
+
 # --- Node / npm ---
 node_modules/
 package-lock.json
+package.json
 
 # --- Python / Flask runtime ---
 __pycache__/
