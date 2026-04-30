@@ -1,0 +1,233 @@
+HOW IT WORKS - ESP-32 Motion Detection System
+===============================================
+
+A plain-language walk-through of every piece of the project and how
+they talk to each other. Pair this with REFERENCES.md for the citations
+and engineering_notebook.txt for the build log.
+
+
+-----------------------------------------------------------
+The whole system in one paragraph
+-----------------------------------------------------------
+Two ESP-32 microcontrollers form a wireless tripwire. One (the
+"beacon") broadcasts a tiny packet ten times a second using ESP-NOW,
+Espressif's peer-to-peer wireless protocol. The other (the
+"tripwire receiver") listens to those packets and measures the
+signal strength of each one. When a person walks between the two
+boards, the signal weakens, and the receiver fires an HTTP POST
+alert over standard WiFi to a Flask server running on a PC. The
+server logs the event with a timestamp and shows it on a live web
+dashboard. Two networks, two protocols, one device.
+
+
+===========================================================
+Each part of the system
+===========================================================
+
+-----------------------------------------------------------
+1. BEACON ESP-32   (firmware: live_demo/beacon/beacon.ino)
+-----------------------------------------------------------
+ROLE
+  Dumb transmitter. No sensing, no thinking, no internet.
+
+WHAT IT DOES
+  - Joins the WiFi network so it lands on the same radio channel as
+    the tripwire receiver.
+  - Broadcasts a small ESP-NOW packet to FF:FF:FF:FF:FF:FF
+    (ESP-NOW broadcast address) every 100 ms.
+  - The packet contains a sequence number and a millis() timestamp.
+
+WHO IT TALKS TO
+  - Anyone listening on ESP-NOW on the same channel.
+  - It does NOT talk to the Flask server. It never makes an HTTP
+    request.
+
+WHY IT EXISTS
+  Without something to receive, there is no signal strength to
+  measure. The beacon gives the receiver a steady, predictable
+  source of RF energy to monitor.
+
+
+-----------------------------------------------------------
+2. TRIPWIRE / RECEIVER ESP-32
+   (firmware: live_demo/tripwire/tripwire.ino)
+-----------------------------------------------------------
+ROLE
+  The actual motion sensor.
+
+WHAT IT DOES
+  - Joins the WiFi network so it can reach the Flask server.
+  - Optionally auto-discovers the server's IP by probing the local
+    subnet on port 5000 (so the demo works even when the PC's IP is
+    not 172.20.10.2).
+  - Registers an ESP-NOW receive callback. Every time it hears a
+    beacon packet, it reads the per-packet RSSI value out of the
+    radio's rx_ctrl struct.
+  - Maintains an "adaptive baseline" using an Exponential Moving
+    Average (EMA): baseline = 0.99*baseline + 0.01*rssi. The
+    baseline slowly tracks the current "normal" RSSI in the room.
+  - Watches for deviations: |rssi - baseline| >= 4 dBm for 2
+    consecutive samples = "tripwire broken."
+  - When tripped, sends an HTTP POST to the Flask server with JSON
+    payload: { sensor_id, event, rssi, delta }.
+  - Five-second cooldown between alerts so a single event doesn't
+    cause a flood.
+
+WHO IT TALKS TO
+  - The beacon (passively, by listening to its broadcasts).
+  - The Flask server (actively, via HTTP POST on motion).
+
+WHY THE ADAPTIVE BASELINE MATTERS
+  A fixed baseline breaks when the boards move or someone sits in
+  the beam. The EMA absorbs slow changes (~30 seconds to
+  re-equilibrate) but stays sensitive to fast changes (a person
+  walking through in 1-2 seconds). It is the same algorithm TCP
+  uses to estimate round-trip time.
+
+
+-----------------------------------------------------------
+3. FLASK SERVER
+   (server: live_demo/server.py and live_demo/server_nodeps.py)
+-----------------------------------------------------------
+ROLE
+  Central aggregator and live dashboard. Runs on the PC.
+
+WHAT IT DOES
+  - Listens on 0.0.0.0:5000 so any device on the local network can
+    reach it.
+  - POST /motion: accepts an alert, adds it to an in-memory list
+    and to alerts.log on disk. Each entry has timestamp, sensor_id,
+    event, source_ip, and any extra fields like rssi/delta.
+  - Cross-sensor correlation: if two DIFFERENT sensor_ids fire
+    within a 3-second window, the server synthesizes an extra
+    HIGH_CONFIDENCE_MOTION event. This is sensor fusion: real
+    motion disturbs both nodes at once, but random noise rarely
+    lines up in time.
+  - GET /: renders the live HTML dashboard, color-coded by event
+    type and auto-refreshing every 5 seconds.
+  - POST /clear: wipes the in-memory log (Clear button on the
+    dashboard). The on-disk alerts.log is preserved.
+
+WHO IT TALKS TO
+  - Browsers (humans viewing the dashboard).
+  - Any ESP-32 that POSTs to /motion.
+
+TWO VERSIONS
+  - server.py: uses Flask. Cleaner code.
+  - server_nodeps.py: zero dependencies, only Python's standard
+    library. Drop-in replacement if pip / Flask installation fails
+    on the demo PC.
+
+
+-----------------------------------------------------------
+4. PIR SENSOR + motion_sensor SKETCH
+   (firmware: tests/motion_sensor/sketch/sketch.ino)
+-----------------------------------------------------------
+ROLE
+  Simpler "must-have" version of motion detection using a physical
+  PIR sensor (or the ESP-32's BOOT button as a stand-in).
+
+WHAT IT DOES
+  - Reads a GPIO pin. HIGH = motion detected.
+  - On rising edge, fires the same HTTP POST as the tripwire
+    (just with a different sensor_id and event name).
+  - Has the same 5-second cooldown.
+
+WHO IT TALKS TO
+  - The Flask server. No ESP-NOW.
+
+WHY IT'S A SEPARATE FIRMWARE
+  Different sensor source, but the network code is intentionally
+  identical to the tripwire. The point is that "alert someone over
+  the network" is a reusable behavior - the actual trigger source
+  is interchangeable.
+
+
+-----------------------------------------------------------
+5. WIFI-ONLY SINGLE-NODE SENSING
+   (firmware: tests/wifi_sensing/sketch/sketch.ino)
+-----------------------------------------------------------
+ROLE
+  Earlier proof-of-concept that led to the ESP-NOW tripwire.
+
+WHAT IT DOES
+  - Connects to the router (not to another ESP-32).
+  - Polls WiFi.RSSI() at 10 Hz, which gives the signal strength
+    between this ESP-32 and the router.
+  - Same baseline + threshold logic as the tripwire receiver, but
+    the signal it watches is the ESP-32-to-router path, not a
+    direct peer-to-peer link.
+
+WHY THIS BECAME THE TRIPWIRE
+  Single-node WiFi sensing detects "something moved somewhere
+  along my path to the router." That's coverage, not a tripwire.
+  Switching to ESP-NOW with a dedicated beacon turns it into a
+  real beam-break sensor between two known points.
+
+
+===========================================================
+End-to-end data flow on demo day
+===========================================================
+
+  [Beacon ESP-32]            [Tripwire ESP-32]                [PC]
+        |                            |                          |
+        |--- ESP-NOW broadcast ----->|                          |
+        |    (10 Hz, RSSI ~ -50)     |                          |
+        |                            | sample RSSI               |
+        |                            | update baseline           |
+        |                            |                           |
+        |--- ESP-NOW broadcast ----->|  RSSI drops to -60        |
+        |    (a person blocks beam)  |  delta = 10 dBm           |
+        |                            |  --> "tripwire broken"    |
+        |                            |                           |
+        |                            |--- HTTP POST /motion ---->| log
+        |                            |    {sensor_id, rssi, ...} | correlate
+        |                            |                           | persist to file
+        |                            |                           |
+        |                            |                           | <-- GET / -- browser
+        |                            |                           |     (auto-refresh)
+
+
+===========================================================
+Networking concepts demonstrated (slide cheat sheet)
+===========================================================
+
+  IEEE 802.11 WiFi   --  the radio link from each ESP-32 to the
+                         router or PC hotspot.
+
+  DHCP               --  every ESP-32 gets its IP automatically
+                         from the hotspot's address pool.
+
+  TCP / HTTP         --  the alerts are JSON POSTs over a normal
+                         TCP connection on port 5000.
+
+  Client-server      --  many sensors, one Flask aggregator.
+
+  ESP-NOW            --  Espressif's peer-to-peer wireless
+                         protocol. No router involved between
+                         beacon and receiver.
+
+  Service discovery  --  the receiver scans 172.20.10.0/28 looking
+                         for a Flask server on port 5000 instead
+                         of relying on a hardcoded IP. Tiny version
+                         of what mDNS / Bonjour does in real life.
+
+  Sensor fusion      --  the server's cross-correlator combines
+                         independent noisy signals into a higher-
+                         confidence event when they agree in time.
+
+  Adaptive baseline  --  Exponential Moving Average tracks the
+                         current "normal" environment without ever
+                         freezing. Same algorithm as TCP's RTT
+                         estimator and computer-vision background
+                         subtraction.
+
+
+===========================================================
+The one-liner version
+===========================================================
+
+The beacon and the tripwire talk to each other directly via
+ESP-NOW with no router in between. The router is only used by the
+tripwire to phone home to the Flask server with the alert. Two
+networks, two protocols, in one device.
